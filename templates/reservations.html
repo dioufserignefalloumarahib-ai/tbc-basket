@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Réservations - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>📅 Réservations</h1>
+    <p>Réservez le terrain pour vos séances ou vos matchs.</p>
+</section>
+
+<section class="info-box">
+    <h2>Nouvelle réservation</h2>
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label>Nom</label>
+            <input type="text" name="nom" required>
+        </div>
+        <div class="field">
+            <label>Date</label>
+            <input type="date" name="date_reservation" required>
+        </div>
+        <div class="field">
+            <label>Heure début</label>
+            <input type="time" name="heure_debut">
+        </div>
+        <div class="field">
+            <label>Heure fin</label>
+            <input type="time" name="heure_fin">
+        </div>
+        <div class="field">
+            <label>Téléphone</label>
+            <input type="tel" name="telephone">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Réserver</button>
+        </div>
+    </form>
+</section>
+
+<section class="card-panel">
+    {% if reservations %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Date</th>
+                <th>Début</th>
+                <th>Fin</th>
+                <th>Téléphone</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reservation in reservations %}
+            <tr>
+                <td>{{ reservation.nom }}</td>
+                <td>{{ reservation.date_reservation }}</td>
+                <td>{{ reservation.heure_debut or '—' }}</td>
+                <td>{{ reservation.heure_fin or '—' }}</td>
+                <td>{{ reservation.telephone or '—' }}</td>
+                <td>
+                    <div class="action-group">
+                        <a href="{{ url_for('modifier_reservation', id=reservation.id) }}" class="small-btn">Modifier</a>
+                        <form action="{{ url_for('supprimer_reservation', id=reservation.id) }}" method="post">
+                            <button type="submit" class="danger-btn small-btn">Supprimer</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Aucune réservation enregistrée.</p>
+    {% endif %}
+</section>
+{% endblock %}

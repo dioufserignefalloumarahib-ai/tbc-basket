@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier match - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>✏️ Modifier un match</h1>
+</section>
+
+<section class="info-box">
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label>Équipe domicile</label>
+            <input type="text" name="equipe_domicile" value="{{ match.equipe_domicile }}" required>
+        </div>
+        <div class="field">
+            <label>Équipe extérieure</label>
+            <input type="text" name="equipe_exterieure" value="{{ match.equipe_exterieure }}" required>
+        </div>
+        <div class="field">
+            <label>Date</label>
+            <input type="date" name="date_match" value="{{ match.date_match or '' }}">
+        </div>
+        <div class="field">
+            <label>Heure</label>
+            <input type="time" name="heure" value="{{ match.heure or '' }}">
+        </div>
+        <div class="field">
+            <label>Score domicile</label>
+            <input type="number" name="score_domicile" value="{{ match.score_domicile }}">
+        </div>
+        <div class="field">
+            <label>Score extérieur</label>
+            <input type="number" name="score_exterieur" value="{{ match.score_exterieur }}">
+        </div>
+        <div class="field">
+            <label>Minuteurs domicile</label>
+            <input type="text" name="minuteurs_domicile" value="{{ match.minuteurs_domicile or '' }}">
+        </div>
+        <div class="field">
+            <label>Minuteurs extérieur</label>
+            <input type="text" name="minuteurs_exterieur" value="{{ match.minuteurs_exterieur or '' }}">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

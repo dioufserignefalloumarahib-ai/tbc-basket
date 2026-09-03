@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Tournois - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>🏆 Tournois</h1>
+    <p>Organisez plusieurs matchs dans une même compétition.</p>
+</section>
+
+<section class="info-box">
+    <h2>Créer un tournoi</h2>
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label for="nom">Nom du tournoi</label>
+            <input id="nom" type="text" name="nom" placeholder="Tournoi TBC 2026" required>
+        </div>
+        <div class="field">
+            <label for="lieu">Lieu</label>
+            <input id="lieu" type="text" name="lieu" placeholder="Thiadiaye">
+        </div>
+        <div class="field">
+            <label for="date_debut">Date de début</label>
+            <input id="date_debut" type="date" name="date_debut">
+        </div>
+        <div class="field">
+            <label for="date_fin">Date de fin</label>
+            <input id="date_fin" type="date" name="date_fin">
+        </div>
+        <div class="field">
+            <label for="description">Description</label>
+            <input id="description" type="text" name="description" placeholder="Compétition du club">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Créer le tournoi</button>
+        </div>
+    </form>
+</section>
+
+<section class="card-panel">
+    <h2>Compétitions disponibles</h2>
+    {% if tournois %}
+    <div class="cards">
+        {% for tournoi in tournois %}
+        <a href="{{ url_for('detail_tournoi', id=tournoi.id) }}" class="card">
+            <div class="card-icon">🏆</div>
+            <h3>{{ tournoi.nom }}</h3>
+            <p>{{ tournoi.lieu or 'Lieu à définir' }}</p>
+            <p>{{ tournoi.date_debut or 'Date à définir' }}{% if tournoi.date_fin %} au {{ tournoi.date_fin }}{% endif %}</p>
+            <strong>{{ tournoi.matchs_total }} match{% if tournoi.matchs_total != 1 %}s{% endif %}</strong>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>Aucun tournoi créé pour le moment.</p>
+    {% endif %}
+</section>
+{% endblock %}

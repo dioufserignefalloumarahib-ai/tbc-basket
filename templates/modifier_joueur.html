@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier joueur - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>✏️ Modifier un joueur</h1>
+</section>
+
+<section class="info-box">
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label>Nom</label>
+            <input type="text" name="nom" value="{{ joueur.nom }}" required>
+        </div>
+        <div class="field">
+            <label>Prénom</label>
+            <input type="text" name="prenom" value="{{ joueur.prenom }}" required>
+        </div>
+        <div class="field">
+            <label>Âge</label>
+            <input type="number" name="age" value="{{ joueur.age or '' }}">
+        </div>
+        <div class="field">
+            <label>Poste</label>
+            <input type="text" name="poste" value="{{ joueur.poste or '' }}">
+        </div>
+        <div class="field">
+            <label>Numéro</label>
+            <input type="number" name="numero" value="{{ joueur.numero or '' }}">
+        </div>
+        <div class="field">
+            <label>Équipe</label>
+            <input type="text" name="equipe" value="{{ joueur.equipe or '' }}">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

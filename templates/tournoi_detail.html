@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tournoi.nom }} - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>🏆 {{ tournoi.nom }}</h1>
+    <p>{{ tournoi.lieu or 'Lieu à définir' }} | {{ tournoi.date_debut or 'Date à définir' }}{% if tournoi.date_fin %} au {{ tournoi.date_fin }}{% endif %}</p>
+</section>
+
+<section class="info-box">
+    <h2>Ajouter un match au tournoi</h2>
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label for="equipe_domicile">Équipe domicile</label>
+            <input id="equipe_domicile" type="text" name="equipe_domicile" required>
+        </div>
+        <div class="field">
+            <label for="equipe_exterieure">Équipe extérieure</label>
+            <input id="equipe_exterieure" type="text" name="equipe_exterieure" required>
+        </div>
+        <div class="field">
+            <label for="date_match">Date</label>
+            <input id="date_match" type="date" name="date_match">
+        </div>
+        <div class="field">
+            <label for="heure">Heure</label>
+            <input id="heure" type="time" name="heure">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Ajouter le match</button>
+        </div>
+    </form>
+</section>
+
+<section class="card-panel">
+    <div class="section-heading">
+        <h2>Matchs du tournoi</h2>
+        <a class="secondary-btn" href="{{ url_for('tournois') }}">Tous les tournois</a>
+    </div>
+    {% if matchs %}
+    <div class="tournament-matches">
+        {% for match in matchs %}
+        <article class="match-card">
+            <div class="match-card-heading">
+                <span>{{ match.date_match or 'Date à définir' }}{% if match.heure %} à {{ match.heure }}{% endif %}</span>
+                <span>Match {{ loop.index }}</span>
+            </div>
+            <div class="match-teams">
+                <strong>{{ match.equipe_domicile }}</strong>
+                <span>VS</span>
+                <strong>{{ match.equipe_exterieure }}</strong>
+            </div>
+            <div class="timer" data-duration="600">
+                <div class="timer-display">10:00</div>
+                <div class="timer-controls">
+                    <button type="button" class="timer-start">Démarrer</button>
+                    <button type="button" class="timer-pause secondary-btn">Pause</button>
+                    <button type="button" class="timer-reset secondary-btn">Réinitialiser</button>
+                </div>
+                <label class="timer-duration">Durée (minutes)
+                    <input type="number" class="timer-minutes" min="1" max="120" value="10">
+                </label>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>Aucun match dans ce tournoi. Ajoutez la première rencontre ci-dessus.</p>
+    {% endif %}
+</section>
+
+<script>
+    document.querySelectorAll('.timer').forEach((timer) => {
+        let remaining = Number(timer.dataset.duration);
+        let intervalId = null;
+        const display = timer.querySelector('.timer-display');
+        const minutesInput = timer.querySelector('.timer-minutes');
+
+        const render = () => {
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        };
+
+        timer.querySelector('.timer-start').addEventListener('click', () => {
+            if (intervalId || remaining <= 0) return;
+            intervalId = setInterval(() => {
+                remaining -= 1;
+                render();
+                if (remaining <= 0) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                    display.classList.add('timer-finished');
+                }
+            }, 1000);
+        });
+
+        timer.querySelector('.timer-pause').addEventListener('click', () => {
+            clearInterval(intervalId);
+            intervalId = null;
+        });
+
+        timer.querySelector('.timer-reset').addEventListener('click', () => {
+            clearInterval(intervalId);
+            intervalId = null;
+            display.classList.remove('timer-finished');
+            remaining = Math.max(1, Number(minutesInput.value) || 10) * 60;
+            render();
+        });
+
+        minutesInput.addEventListener('change', () => {
+            if (!intervalId) {
+                remaining = Math.max(1, Number(minutesInput.value) || 10) * 60;
+                render();
+            }
+        });
+
+        render();
+    });
+</script>
+{% endblock %}

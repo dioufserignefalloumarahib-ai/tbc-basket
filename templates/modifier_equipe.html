@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier équipe - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>✏️ Modifier une équipe</h1>
+</section>
+
+<section class="info-box">
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label>Nom</label>
+            <input type="text" name="nom" value="{{ equipe.nom }}" required>
+        </div>
+        <div class="field">
+            <label>Catégorie</label>
+            <input type="text" name="categorie" value="{{ equipe.categorie or '' }}">
+        </div>
+        <div class="field">
+            <label>Entraîneur</label>
+            <input type="text" name="entraineur" value="{{ equipe.entraineur or '' }}">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

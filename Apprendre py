@@ -1,0 +1,7 @@
+nom = "fallou"
+age = 20
+formation = "géographie"
+pays = "senegal"
+ville = "thiadiaye" 
+universite = "gaston berger de saint louis"
+print("Salut je m'appelle", nom)

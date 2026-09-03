@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: thiadiaye-basket-club
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: tbc-data
+      mountPath: /opt/render/project/src/database
+      sizeGB: 1

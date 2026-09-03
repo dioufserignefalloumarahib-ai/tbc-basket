@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier réservation - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>✏️ Modifier une réservation</h1>
+</section>
+
+<section class="info-box">
+    <form method="post" class="form-grid">
+        <div class="field">
+            <label>Nom</label>
+            <input type="text" name="nom" value="{{ reservation.nom }}" required>
+        </div>
+        <div class="field">
+            <label>Date</label>
+            <input type="date" name="date_reservation" value="{{ reservation.date_reservation }}" required>
+        </div>
+        <div class="field">
+            <label>Heure début</label>
+            <input type="time" name="heure_debut" value="{{ reservation.heure_debut or '' }}">
+        </div>
+        <div class="field">
+            <label>Heure fin</label>
+            <input type="time" name="heure_fin" value="{{ reservation.heure_fin or '' }}">
+        </div>
+        <div class="field">
+            <label>Téléphone</label>
+            <input type="tel" name="telephone" value="{{ reservation.telephone or '' }}">
+        </div>
+        <div class="field form-submit">
+            <button type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

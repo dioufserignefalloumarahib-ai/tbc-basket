@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}
+Accueil - TBC
+{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+
+    <div class="hero-content">
+
+        <p class="small-title">BIENVENUE SUR</p>
+
+        <h1>
+            TBC
+        </h1>
+
+        <h2>
+            THIADIAYE BASKET CLUB
+        </h2>
+
+        <p>
+            THADIAYE, on vous porte dans nos veines
+        </p>
+
+    </div>
+
+</section>
+
+
+<section class="dashboard">
+
+    <h2>🏀 Tableau de bord</h2>
+
+    <div class="cards">
+
+        <a href="/terrain" class="card">
+
+            <div class="card-icon">🏟️</div>
+
+            <h3>Notre terrain</h3>
+
+            <p>
+                Découvrez les informations du terrain TBC.
+            </p>
+
+        </a>
+
+
+        <a href="/joueurs" class="card">
+
+            <div class="card-icon">👥</div>
+
+            <h3>Joueurs</h3>
+
+            <p>
+                Consultez et gérez les joueurs du club.
+            </p>
+
+        </a>
+
+
+        <a href="/equipes" class="card">
+
+            <div class="card-icon">🏀</div>
+
+            <h3>Équipes</h3>
+
+            <p>
+                Gérez les différentes équipes du TBC.
+            </p>
+
+        </a>
+
+
+        <a href="/matchs" class="card">
+
+            <div class="card-icon">📅</div>
+
+            <h3>Matchs</h3>
+
+            <p>
+                Consultez les matchs et les résultats.
+            </p>
+
+        </a>
+
+    </div>
+
+</section>
+
+{% endblock %}

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}TBC - Thiadiaye Basket Club{% endblock %}</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <header class="header">
+
+        <div class="logo">
+            🏀 <span>TBC</span>
+        </div>
+
+        <div class="club-name">
+            THIADIAYE BASKET CLUB
+        </div>
+
+    </header>
+
+    <nav class="navbar">
+
+        <a href="/">🏠 Accueil</a>
+        <a href="/terrain">🏟️ Terrain</a>
+        <a href="/joueurs">👥 Joueurs</a>
+        <a href="/equipes">🏀 Équipes</a>
+        <a href="/matchs">📅 Matchs</a>
+        <a href="/tournois">🏆 Tournois</a>
+        <a href="/reservations">📌 Réservations</a>
+
+    </nav>
+
+    <main class="container">
+
+        {% block content %}
+        {% endblock %}
+
+    </main>
+
+    <footer>
+
+        <p>
+            🏀 TBC — THIADIAYE BASKET CLUB
+        </p>
+
+        <p>
+            THADIAYE, on vous porte dans nos veines
+        </p>
+
+    </footer>
+
+</body>
+</html>

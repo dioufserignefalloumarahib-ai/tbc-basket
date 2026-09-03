@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Terrain - TBC{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h1>🏟️ Terrain</h1>
+    <p>Informations officielles sur le terrain du club.</p>
+</section>
+
+<section class="info-box">
+    {% if terrain %}
+    <h2>{{ terrain.nom }}</h2>
+    <div class="grid-2">
+        <div>
+            <p><strong>Localisation :</strong> {{ terrain.localisation or '—' }}</p>
+            <p><strong>Description :</strong> {{ terrain.description or '—' }}</p>
+        </div>
+        <div>
+            <span class="status-badge">Terrain disponible</span>
+        </div>
+    </div>
+    {% else %}
+    <p>Le terrain n’a pas encore été configuré.</p>
+    {% endif %}
+</section>
+{% endblock %}
