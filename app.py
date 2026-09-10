@@ -96,6 +96,24 @@ CREATE TABLE IF NOT EXISTS system_players (
     FOREIGN KEY(system_id) REFERENCES systems(id) ON DELETE CASCADE,
     FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS player_game_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, player_id INTEGER NOT NULL, match_id INTEGER NOT NULL,
+    minutes REAL DEFAULT 0, points INTEGER DEFAULT 0, oreb INTEGER DEFAULT 0, dreb INTEGER DEFAULT 0,
+    rebounds INTEGER DEFAULT 0, assists INTEGER DEFAULT 0, steals INTEGER DEFAULT 0, blocks INTEGER DEFAULT 0,
+    turnovers INTEGER DEFAULT 0, fouls INTEGER DEFAULT 0, two_made INTEGER DEFAULT 0, two_attempted INTEGER DEFAULT 0,
+    three_made INTEGER DEFAULT 0, three_attempted INTEGER DEFAULT 0, ft_made INTEGER DEFAULT 0, ft_attempted INTEGER DEFAULT 0,
+    plus_minus INTEGER DEFAULT 0, evaluation REAL DEFAULT 0, is_man_of_match INTEGER DEFAULT 0,
+    UNIQUE(player_id, match_id), FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE,
+    FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS match_team_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, match_id INTEGER UNIQUE NOT NULL, team_points INTEGER DEFAULT 0,
+    team_rebounds INTEGER DEFAULT 0, team_assists INTEGER DEFAULT 0, team_steals INTEGER DEFAULT 0,
+    team_blocks INTEGER DEFAULT 0, team_turnovers INTEGER DEFAULT 0, team_fouls INTEGER DEFAULT 0,
+    opponent_rebounds INTEGER DEFAULT 0, opponent_assists INTEGER DEFAULT 0, opponent_steals INTEGER DEFAULT 0,
+    opponent_blocks INTEGER DEFAULT 0, opponent_turnovers INTEGER DEFAULT 0, opponent_fouls INTEGER DEFAULT 0,
+    FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE CASCADE
+);
 """
 
 
@@ -129,9 +147,40 @@ def execute(sql, params=()):
     return cursor.lastrowid
 
 
+STAT_FIELDS = (
+    "minutes", "points", "oreb", "dreb", "rebounds", "assists", "steals", "blocks",
+    "turnovers", "fouls", "two_made", "two_attempted", "three_made", "three_attempted",
+    "ft_made", "ft_attempted", "plus_minus",
+)
+
+
+def calculate_player_rating(stats):
+    """An all-around rating that rewards creation and defense, not points alone."""
+    return round(
+        stats["points"] + stats["rebounds"] + stats["assists"] + stats["steals"] * 1.5
+        + stats["blocks"] * 1.5 + stats["plus_minus"] * 0.25
+        - stats["turnovers"] * 1.25 - stats["fouls"] * 0.5, 1
+    )
+
+
+def get_man_of_the_match(match_id):
+    return query("SELECT pgs.*, p.first_name, p.last_name, p.jersey_number FROM player_game_stats pgs JOIN players p ON p.id=pgs.player_id WHERE pgs.match_id=? ORDER BY pgs.evaluation DESC, pgs.points DESC LIMIT 1", (match_id,), one=True)
+
+
+def ensure_match_stat_rows(match_id, team_id=None):
+    players = query("SELECT id FROM players WHERE team_id=? ORDER BY jersey_number, last_name", (team_id,)) if team_id else query("SELECT id FROM players ORDER BY jersey_number, last_name")
+    for player in players:
+        execute("INSERT OR IGNORE INTO player_game_stats (player_id, match_id) VALUES (?, ?)", (player["id"], match_id))
+
+
 def init_db():
     db = get_db()
     db.executescript(SCHEMA)
+    match_columns = {row["name"] for row in query("PRAGMA table_info(matches)")}
+    if "man_of_match_id" not in match_columns:
+        db.execute("ALTER TABLE matches ADD COLUMN man_of_match_id INTEGER")
+    if "manual_man_of_match" not in match_columns:
+        db.execute("ALTER TABLE matches ADD COLUMN manual_man_of_match INTEGER DEFAULT 0")
     required_columns = {
         "teams": {"id", "name", "category", "color"},
         "players": {"id", "first_name", "last_name", "team_id", "status"},
@@ -534,14 +583,89 @@ def system_positions(system_id):
 @app.route("/statistics")
 @login_required
 def statistics():
-    players_stats = query("SELECT p.first_name, p.last_name, t.name AS team_name, s.* FROM player_statistics s JOIN players p ON p.id=s.player_id LEFT JOIN teams t ON t.id=p.team_id ORDER BY s.points DESC")
+    selected_match_id = request.args.get("match_id", type=int)
+    matches_list = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id ORDER BY m.match_date DESC, m.match_time DESC")
+    selected_match = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id WHERE m.id=?", (selected_match_id,), one=True) if selected_match_id else (matches_list[0] if matches_list else None)
+    if selected_match:
+        ensure_match_stat_rows(selected_match["id"], selected_match["team_id"])
+    players_stats = query("""SELECT p.id, p.first_name, p.last_name, p.jersey_number, t.name AS team_name,
+        COUNT(DISTINCT pgs.match_id) AS games, COALESCE(SUM(pgs.points),0) AS points,
+        COALESCE(SUM(pgs.oreb + pgs.dreb),0) AS rebounds, COALESCE(SUM(pgs.assists),0) AS assists,
+        COALESCE(SUM(pgs.steals),0) AS steals, COALESCE(SUM(pgs.blocks),0) AS blocks,
+        COALESCE(SUM(pgs.turnovers),0) AS turnovers, COALESCE(SUM(pgs.fouls),0) AS fouls,
+        COALESCE(SUM(pgs.minutes),0) AS minutes, COALESCE(SUM(pgs.two_made),0) AS two_made,
+        COALESCE(SUM(pgs.two_attempted),0) AS two_attempted, COALESCE(SUM(pgs.three_made),0) AS three_made,
+        COALESCE(SUM(pgs.three_attempted),0) AS three_attempted, COALESCE(SUM(pgs.ft_made),0) AS ft_made,
+        COALESCE(SUM(pgs.ft_attempted),0) AS ft_attempted
+        FROM players p LEFT JOIN player_game_stats pgs ON pgs.player_id=p.id LEFT JOIN teams t ON t.id=p.team_id
+        GROUP BY p.id ORDER BY points DESC""")
     team_stats = query("SELECT t.name, t.category, s.*, (s.points_for-s.points_against) AS difference FROM team_statistics s JOIN teams t ON t.id=s.team_id ORDER BY s.wins DESC")
     totals = {
         "points_for": sum(row["points_for"] or 0 for row in team_stats),
         "wins": sum(row["wins"] or 0 for row in team_stats),
         "top_points": players_stats[0]["points"] if players_stats else 0,
     }
-    return render_template("statistics.html", active="statistics", players_stats=players_stats, team_stats=team_stats, totals=totals)
+    current_stats = query("SELECT pgs.*, p.first_name, p.last_name, p.jersey_number FROM player_game_stats pgs JOIN players p ON p.id=pgs.player_id WHERE pgs.match_id=? ORDER BY pgs.evaluation DESC, pgs.points DESC", (selected_match["id"],)) if selected_match else []
+    man = get_man_of_the_match(selected_match["id"]) if selected_match else None
+    return render_template("statistics.html", active="statistics", players_stats=players_stats, team_stats=team_stats, totals=totals, matches=matches_list, selected_match=selected_match, current_stats=current_stats, man_of_match=man)
+
+
+@app.route("/statistics/player/<int:player_id>")
+@login_required
+def player_statistics_detail(player_id):
+    player = query("SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id=p.team_id WHERE p.id=?", (player_id,), one=True)
+    if not player:
+        return redirect(url_for("statistics"))
+    season = query("SELECT COUNT(*) AS games, COALESCE(SUM(minutes),0) minutes, COALESCE(SUM(points),0) points, COALESCE(SUM(oreb+dreb),0) rebounds, COALESCE(SUM(assists),0) assists, COALESCE(SUM(steals),0) steals, COALESCE(SUM(blocks),0) blocks, COALESCE(SUM(turnovers),0) turnovers, COALESCE(SUM(fouls),0) fouls, COALESCE(SUM(two_made),0) two_made, COALESCE(SUM(two_attempted),0) two_attempted, COALESCE(SUM(three_made),0) three_made, COALESCE(SUM(three_attempted),0) three_attempted, COALESCE(SUM(ft_made),0) ft_made, COALESCE(SUM(ft_attempted),0) ft_attempted FROM player_game_stats WHERE player_id=?", (player_id,), one=True)
+    history = query("SELECT pgs.*, m.opponent, m.match_date, m.home_score, m.away_score FROM player_game_stats pgs JOIN matches m ON m.id=pgs.match_id WHERE pgs.player_id=? ORDER BY m.match_date DESC", (player_id,))
+    return render_template("player_statistics.html", active="statistics", player=player, season=season, history=history)
+
+
+@app.post("/statistics/matches/<int:match_id>/save")
+@login_required
+def save_match_statistics(match_id):
+    match = query("SELECT id FROM matches WHERE id=?", (match_id,), one=True)
+    if not match:
+        return {"ok": False, "message": "Match introuvable."}, 404
+    fields = list(STAT_FIELDS)
+    for player in request.form.getlist("player_ids"):
+        values = []
+        for field in fields:
+            raw = request.form.get(f"{field}_{player}", "0")
+            try:
+                values.append(float(raw) if field == "minutes" else int(float(raw)))
+            except ValueError:
+                values.append(0)
+        stats = dict(zip(fields, values))
+        rating = calculate_player_rating(stats)
+        execute("""INSERT INTO player_game_stats (player_id,match_id,minutes,points,oreb,dreb,rebounds,assists,steals,blocks,turnovers,fouls,two_made,two_attempted,three_made,three_attempted,ft_made,ft_attempted,plus_minus,evaluation)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(player_id,match_id) DO UPDATE SET minutes=excluded.minutes,points=excluded.points,oreb=excluded.oreb,dreb=excluded.dreb,rebounds=excluded.rebounds,assists=excluded.assists,steals=excluded.steals,blocks=excluded.blocks,turnovers=excluded.turnovers,fouls=excluded.fouls,two_made=excluded.two_made,two_attempted=excluded.two_attempted,three_made=excluded.three_made,three_attempted=excluded.three_attempted,ft_made=excluded.ft_made,ft_attempted=excluded.ft_attempted,plus_minus=excluded.plus_minus,evaluation=excluded.evaluation""",
+                (player, match_id, *values, rating))
+    man = get_man_of_the_match(match_id)
+    execute("UPDATE matches SET man_of_match_id=?, manual_man_of_match=0 WHERE id=?", (man["player_id"] if man else None, match_id))
+    flash("Statistiques du match enregistrées et homme du match calculé.", "success")
+    return redirect(url_for("statistics", match_id=match_id))
+
+
+@app.post("/api/matches/<int:match_id>/players/<int:player_id>/stat")
+@login_required
+def increment_player_stat(match_id, player_id):
+    data = request.get_json(silent=True) or {}
+    action = data.get("action", "")
+    increments = {"points": "points", "rebounds": "rebounds", "assists": "assists", "steals": "steals", "blocks": "blocks", "turnovers": "turnovers", "fouls": "fouls"}
+    if action not in increments:
+        return {"ok": False, "message": "Action statistique invalide."}, 400
+    execute("INSERT OR IGNORE INTO player_game_stats (player_id, match_id) VALUES (?,?)", (player_id, match_id))
+    column = increments[action]
+    execute(f"UPDATE player_game_stats SET {column}=MAX(0,{column}+?) WHERE player_id=? AND match_id=?", (int(data.get("value", 1)), player_id, match_id))
+    if action == "points":
+        execute("UPDATE matches SET home_score=home_score+? WHERE id=?", (int(data.get("value", 1)), match_id))
+    row = query(f"SELECT {column} AS value, points, rebounds, assists, steals, blocks, turnovers, fouls, plus_minus FROM player_game_stats WHERE player_id=? AND match_id=?", (player_id, match_id), one=True)
+    rating = calculate_player_rating(row)
+    execute("UPDATE player_game_stats SET evaluation=? WHERE player_id=? AND match_id=?", (rating, player_id, match_id))
+    man = get_man_of_the_match(match_id)
+    execute("UPDATE matches SET man_of_match_id=? WHERE id=?", (man["player_id"] if man else None, match_id))
+    return {"ok": True, "field": action, "value": row["value"], "rating": rating}
 
 
 @app.route("/scoreboard")
@@ -550,7 +674,11 @@ def scoreboard():
     match_id = request.args.get("match_id", type=int)
     matches_list = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id ORDER BY m.match_date DESC, m.match_time DESC")
     selected_match = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id WHERE m.id = ?", (match_id,), one=True) if match_id else (matches_list[0] if matches_list else None)
-    return render_template("scoreboard.html", active="scoreboard", matches=matches_list, selected_match=selected_match)
+    scoreboard_players = []
+    if selected_match:
+        ensure_match_stat_rows(selected_match["id"], selected_match["team_id"])
+        scoreboard_players = query("SELECT p.id, p.first_name, p.last_name, p.jersey_number, pgs.points, pgs.rebounds, pgs.assists, pgs.steals, pgs.blocks, pgs.turnovers, pgs.fouls FROM players p JOIN player_game_stats pgs ON pgs.player_id=p.id AND pgs.match_id=? WHERE p.team_id=? ORDER BY p.jersey_number, p.last_name", (selected_match["id"], selected_match["team_id"]))
+    return render_template("scoreboard.html", active="scoreboard", matches=matches_list, selected_match=selected_match, scoreboard_players=scoreboard_players)
 
 
 @app.route("/settings")
