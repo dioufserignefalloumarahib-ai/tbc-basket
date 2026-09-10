@@ -340,13 +340,21 @@ def venue():
 def statistics():
     players_stats = query("SELECT p.first_name, p.last_name, t.name AS team_name, s.* FROM player_statistics s JOIN players p ON p.id=s.player_id LEFT JOIN teams t ON t.id=p.team_id ORDER BY s.points DESC")
     team_stats = query("SELECT t.name, t.category, s.*, (s.points_for-s.points_against) AS difference FROM team_statistics s JOIN teams t ON t.id=s.team_id ORDER BY s.wins DESC")
-    return render_template("statistics.html", active="statistics", players_stats=players_stats, team_stats=team_stats)
+    totals = {
+        "points_for": sum(row["points_for"] or 0 for row in team_stats),
+        "wins": sum(row["wins"] or 0 for row in team_stats),
+        "top_points": players_stats[0]["points"] if players_stats else 0,
+    }
+    return render_template("statistics.html", active="statistics", players_stats=players_stats, team_stats=team_stats, totals=totals)
 
 
 @app.route("/scoreboard")
 @login_required
 def scoreboard():
-    return render_template("scoreboard.html", active="scoreboard")
+    match_id = request.args.get("match_id", type=int)
+    matches_list = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id ORDER BY m.match_date DESC, m.match_time DESC")
+    selected_match = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id WHERE m.id = ?", (match_id,), one=True) if match_id else (matches_list[0] if matches_list else None)
+    return render_template("scoreboard.html", active="scoreboard", matches=matches_list, selected_match=selected_match)
 
 
 @app.route("/nba")
@@ -365,7 +373,13 @@ def settings():
 @app.route("/api/scoreboard", methods=["POST"])
 @login_required
 def save_scoreboard():
-    return {"ok": True, "message": "Score enregistré côté session"}
+    data = request.get_json(silent=True) or {}
+    match_id = data.get("match_id")
+    if not match_id:
+        return {"ok": False, "message": "Sélectionnez un match TBC."}, 400
+    execute("UPDATE matches SET home_score = ?, away_score = ?, status = ? WHERE id = ?",
+            (max(0, int(data.get("home", 0))), max(0, int(data.get("away", 0))), data.get("status", "En cours"), match_id))
+    return {"ok": True, "message": "Score du match TBC enregistré"}
 
 
 @app.cli.command("init-db")
