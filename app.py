@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import json
 from datetime import date, datetime
 from functools import wraps
 from pathlib import Path
@@ -66,6 +67,35 @@ CREATE TABLE IF NOT EXISTS nba_games (
     start_time TEXT, period TEXT, source TEXT DEFAULT 'API à configurer'
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, age_range TEXT,
+    gender TEXT DEFAULT 'Mixte', coach TEXT, description TEXT DEFAULT '',
+    status TEXT DEFAULT 'active', created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS category_players (
+    category_id INTEGER NOT NULL, player_id INTEGER NOT NULL,
+    PRIMARY KEY (category_id, player_id),
+    FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE,
+    FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS systems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, system_type TEXT NOT NULL,
+    player_count INTEGER DEFAULT 5, description TEXT DEFAULT '', objective TEXT DEFAULT '',
+    key_points TEXT DEFAULT '', instructions TEXT DEFAULT '', coach TEXT,
+    status TEXT DEFAULT 'active', positions_json TEXT DEFAULT '[]', created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS system_categories (
+    system_id INTEGER NOT NULL, category_id INTEGER NOT NULL,
+    PRIMARY KEY (system_id, category_id),
+    FOREIGN KEY(system_id) REFERENCES systems(id) ON DELETE CASCADE,
+    FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS system_players (
+    system_id INTEGER NOT NULL, player_id INTEGER NOT NULL, role TEXT,
+    PRIMARY KEY (system_id, player_id),
+    FOREIGN KEY(system_id) REFERENCES systems(id) ON DELETE CASCADE,
+    FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
+);
 """
 
 
@@ -142,7 +172,34 @@ def init_db():
                 (senior, "ASC Ville", date.today().isoformat(), "18:30", "Terrain TBC", "Championnat régional", "À venir", 0, 0))
         execute("INSERT INTO matches (team_id, opponent, match_date, match_time, venue, competition, status, home_score, away_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (senior, "BC Saloum", "2026-08-28", "17:00", "Thiès", "Coupe du Sénégal", "Terminé", 72, 64))
+    seed_classes_and_systems()
     get_db().commit()
+
+
+def seed_classes_and_systems():
+    """Adds useful defaults once, without changing existing club records."""
+    category_defaults = [
+        ("U10", "6-9 ans", "Mixte"), ("U12", "10-11 ans", "Mixte"),
+        ("U14", "12-13 ans", "Mixte"), ("U16", "14-15 ans", "Mixte"),
+        ("U18", "16-17 ans", "Mixte"), ("U20", "18-19 ans", "Mixte"),
+        ("Seniors", "20 ans et +", "Mixte"), ("Féminines", "Toutes catégories", "Féminines"),
+        ("Loisirs", "Adultes", "Mixte"),
+    ]
+    for name, age_range, gender in category_defaults:
+        execute("INSERT OR IGNORE INTO categories (name, age_range, gender, status, created_at) VALUES (?, ?, ?, 'active', ?)",
+                (name, age_range, gender, datetime.now().isoformat()))
+    execute("INSERT OR IGNORE INTO category_players (category_id, player_id) SELECT c.id, p.id FROM categories c JOIN teams t ON t.category = c.name JOIN players p ON p.team_id = t.id")
+    system_defaults = [
+        ("Pick and Roll", "attaque", 5, "Créer un avantage à deux joueurs.", "Mettre la défense en difficulté sur écran porteur."),
+        ("Zone 2-3", "défense", 5, "Protéger la raquette et fermer les pénétrations.", "Contrôler le rebond et les lignes de passe."),
+        ("Homme à homme", "défense", 5, "Responsabiliser chaque défenseur.", "Contenir, aider, reprendre son joueur."),
+        ("Fast Break", "transition", 5, "Jouer vite après récupération.", "Écarter le terrain et courir les couloirs."),
+        ("Motion Offense", "attaque", 5, "Créer du mouvement et des tirs ouverts.", "Passer, couper, poser des écrans."),
+    ]
+    for name, system_type, player_count, description, objective in system_defaults:
+        if not query("SELECT id FROM systems WHERE name=? LIMIT 1", (name,), one=True):
+            execute("INSERT INTO systems (name, system_type, player_count, description, objective, status, positions_json, created_at) VALUES (?, ?, ?, ?, ?, 'active', '[]', ?)",
+                (name, system_type, player_count, description, objective, datetime.now().isoformat()))
 
 
 def login_required(view):
@@ -335,6 +392,134 @@ def venue():
     return render_template("venue.html", active="venue", venue=query("SELECT * FROM venue WHERE id=1", one=True))
 
 
+@app.route("/classes-systems", methods=["GET", "POST"])
+@login_required
+def classes_systems():
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "category":
+            name = request.form.get("name", "").strip()
+            if not name:
+                flash("Le nom de la catégorie est obligatoire.", "danger")
+            else:
+                category_id = execute("INSERT INTO categories (name, age_range, gender, coach, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                      (name, request.form.get("age_range"), request.form.get("gender", "Mixte"), request.form.get("coach"), request.form.get("description"), request.form.get("status", "active"), datetime.now().isoformat()))
+                for player_id in request.form.getlist("player_ids"):
+                    execute("INSERT OR IGNORE INTO category_players (category_id, player_id) VALUES (?, ?)", (category_id, player_id))
+                flash("Catégorie créée.", "success")
+        elif action == "system":
+            name = request.form.get("name", "").strip()
+            if not name:
+                flash("Le nom du système est obligatoire.", "danger")
+            else:
+                system_id = execute("INSERT INTO systems (name, system_type, player_count, description, objective, key_points, instructions, coach, status, positions_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                    (name, request.form.get("system_type", "attaque"), int(request.form.get("player_count") or 5), request.form.get("description"), request.form.get("objective"), request.form.get("key_points"), request.form.get("instructions"), request.form.get("coach"), request.form.get("status", "active"), "[]", datetime.now().isoformat()))
+                for category_id in request.form.getlist("category_ids"):
+                    execute("INSERT OR IGNORE INTO system_categories (system_id, category_id) VALUES (?, ?)", (system_id, category_id))
+                flash("Système de jeu créé.", "success")
+        return redirect(url_for("classes_systems"))
+    categories = query("SELECT c.*, COUNT(cp.player_id) AS player_count FROM categories c LEFT JOIN category_players cp ON cp.category_id=c.id GROUP BY c.id ORDER BY c.name")
+    systems = query("SELECT s.*, GROUP_CONCAT(c.name, ', ') AS category_names FROM systems s LEFT JOIN system_categories sc ON sc.system_id=s.id LEFT JOIN categories c ON c.id=sc.category_id GROUP BY s.id ORDER BY s.created_at DESC")
+    players_list = query("SELECT id, first_name, last_name FROM players ORDER BY last_name, first_name")
+    return render_template("classes_systems.html", active="classes", categories=categories, systems=systems, players=players_list)
+
+
+@app.route("/classes-systems/categories/<int:category_id>")
+@login_required
+def category_detail(category_id):
+    category = query("SELECT c.*, COUNT(cp.player_id) AS player_count FROM categories c LEFT JOIN category_players cp ON cp.category_id=c.id WHERE c.id=? GROUP BY c.id", (category_id,), one=True)
+    if not category:
+        return redirect(url_for("classes_systems"))
+    players_list = query("SELECT p.* FROM players p JOIN category_players cp ON cp.player_id=p.id WHERE cp.category_id=? ORDER BY p.last_name", (category_id,))
+    return render_template("category_detail.html", active="classes", category=category, players=players_list)
+
+
+@app.route("/classes-systems/categories/<int:category_id>/edit", methods=["GET", "POST"])
+@login_required
+def category_edit(category_id):
+    category = query("SELECT * FROM categories WHERE id=?", (category_id,), one=True)
+    if not category:
+        return redirect(url_for("classes_systems"))
+    players_list = query("SELECT id, first_name, last_name FROM players ORDER BY last_name, first_name")
+    if request.method == "POST":
+        execute("UPDATE categories SET name=?, age_range=?, gender=?, coach=?, description=?, status=? WHERE id=?",
+                (request.form.get("name", "").strip(), request.form.get("age_range"), request.form.get("gender"), request.form.get("coach"), request.form.get("description"), request.form.get("status"), category_id))
+        execute("DELETE FROM category_players WHERE category_id=?", (category_id,))
+        for player_id in request.form.getlist("player_ids"):
+            execute("INSERT OR IGNORE INTO category_players (category_id, player_id) VALUES (?,?)", (category_id, player_id))
+        flash("Catégorie modifiée.", "success")
+        return redirect(url_for("category_detail", category_id=category_id))
+    selected = {row["player_id"] for row in query("SELECT player_id FROM category_players WHERE category_id=?", (category_id,))}
+    return render_template("category_form.html", active="classes", category=category, players=players_list, selected=selected, form_title="Modifier la catégorie")
+
+
+@app.post("/classes-systems/categories/<int:category_id>/delete")
+@login_required
+def category_delete(category_id):
+    execute("DELETE FROM categories WHERE id=?", (category_id,))
+    flash("Catégorie supprimée.", "success")
+    return redirect(url_for("classes_systems"))
+
+
+@app.route("/classes-systems/systems/<int:system_id>")
+@login_required
+def system_detail(system_id):
+    system = query("SELECT s.*, GROUP_CONCAT(c.name, ', ') AS category_names FROM systems s LEFT JOIN system_categories sc ON sc.system_id=s.id LEFT JOIN categories c ON c.id=sc.category_id WHERE s.id=? GROUP BY s.id", (system_id,), one=True)
+    if not system:
+        return redirect(url_for("classes_systems"))
+    categories = query("SELECT c.* FROM categories c JOIN system_categories sc ON sc.category_id=c.id WHERE sc.system_id=?", (system_id,))
+    players_list = query("SELECT p.*, sp.role FROM players p JOIN system_players sp ON sp.player_id=p.id WHERE sp.system_id=? ORDER BY p.last_name", (system_id,))
+    return render_template("system_detail.html", active="classes", system=system, categories=categories, players=players_list,
+                           positions=json.loads(system["positions_json"] or "[]"))
+
+
+@app.route("/classes-systems/systems/<int:system_id>/edit", methods=["GET", "POST"])
+@login_required
+def system_edit(system_id):
+    system = query("SELECT * FROM systems WHERE id=?", (system_id,), one=True)
+    if not system:
+        return redirect(url_for("classes_systems"))
+    categories = query("SELECT * FROM categories ORDER BY name")
+    if request.method == "POST":
+        execute("UPDATE systems SET name=?, system_type=?, player_count=?, description=?, objective=?, key_points=?, instructions=?, coach=?, status=? WHERE id=?",
+                (request.form.get("name", "").strip(), request.form.get("system_type"), int(request.form.get("player_count") or 5), request.form.get("description"), request.form.get("objective"), request.form.get("key_points"), request.form.get("instructions"), request.form.get("coach"), request.form.get("status"), system_id))
+        execute("DELETE FROM system_categories WHERE system_id=?", (system_id,))
+        for category_id in request.form.getlist("category_ids"):
+            execute("INSERT OR IGNORE INTO system_categories (system_id, category_id) VALUES (?,?)", (system_id, category_id))
+        flash("Système modifié.", "success")
+        return redirect(url_for("system_detail", system_id=system_id))
+    selected = {row["category_id"] for row in query("SELECT category_id FROM system_categories WHERE system_id=?", (system_id,))}
+    return render_template("system_form.html", active="classes", system=system, categories=categories, selected=selected, form_title="Modifier le système")
+
+
+@app.post("/classes-systems/systems/<int:system_id>/delete")
+@login_required
+def system_delete(system_id):
+    execute("DELETE FROM systems WHERE id=?", (system_id,))
+    flash("Système supprimé.", "success")
+    return redirect(url_for("classes_systems"))
+
+
+@app.post("/classes-systems/systems/<int:system_id>/duplicate")
+@login_required
+def system_duplicate(system_id):
+    system = query("SELECT * FROM systems WHERE id=?", (system_id,), one=True)
+    if system:
+        new_id = execute("INSERT INTO systems (name, system_type, player_count, description, objective, key_points, instructions, coach, status, positions_json, created_at) SELECT name || ' (copie)', system_type, player_count, description, objective, key_points, instructions, coach, 'active', positions_json, ? FROM systems WHERE id=?", (datetime.now().isoformat(), system_id))
+        execute("INSERT INTO system_categories SELECT ?, category_id FROM system_categories WHERE system_id=?", (new_id, system_id))
+        flash("Système dupliqué.", "success")
+    return redirect(url_for("classes_systems"))
+
+
+@app.post("/classes-systems/systems/<int:system_id>/training")
+@login_required
+def system_training(system_id):
+    system = query("SELECT name FROM systems WHERE id=?", (system_id,), one=True)
+    if system:
+        flash(f"{system['name']} est prêt pour l'entraînement.", "success")
+    return redirect(url_for("system_detail", system_id=system_id))
+
+
 @app.route("/statistics")
 @login_required
 def statistics():
@@ -355,13 +540,6 @@ def scoreboard():
     matches_list = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id ORDER BY m.match_date DESC, m.match_time DESC")
     selected_match = query("SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id=m.team_id WHERE m.id = ?", (match_id,), one=True) if match_id else (matches_list[0] if matches_list else None)
     return render_template("scoreboard.html", active="scoreboard", matches=matches_list, selected_match=selected_match)
-
-
-@app.route("/nba")
-@login_required
-def nba():
-    games = query("SELECT * FROM nba_games ORDER BY CASE status WHEN 'LIVE' THEN 1 WHEN 'À VENIR' THEN 2 ELSE 3 END, start_time")
-    return render_template("nba.html", active="nba", games=games, api_ready=bool(os.environ.get("NBA_API_KEY")))
 
 
 @app.route("/settings")
