@@ -102,6 +102,20 @@ def execute(sql, params=()):
 def init_db():
     db = get_db()
     db.executescript(SCHEMA)
+    required_columns = {
+        "teams": {"id", "name", "category", "color"},
+        "players": {"id", "first_name", "last_name", "team_id", "status"},
+        "matches": {"id", "team_id", "opponent", "match_date", "status", "home_score", "away_score"},
+        "reservations": {"id", "requester", "reservation_date", "start_time", "end_time", "status"},
+    }
+    schema_is_compatible = all(
+        required.issubset({row["name"] for row in query(f"PRAGMA table_info({table})")})
+        for table, required in required_columns.items()
+    )
+    if not schema_is_compatible:
+        for table in ("player_statistics", "team_statistics", "players", "matches", "reservations", "teams", "venue", "nba_games", "settings", "users"):
+            db.execute(f"DROP TABLE IF EXISTS {table}")
+        db.executescript(SCHEMA)
     if not query("SELECT id FROM users LIMIT 1", one=True):
         execute("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
                 ("admin", generate_password_hash("admin123"), datetime.now().isoformat()))
