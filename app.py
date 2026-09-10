@@ -520,6 +520,17 @@ def system_training(system_id):
     return redirect(url_for("system_detail", system_id=system_id))
 
 
+@app.post("/classes-systems/systems/<int:system_id>/positions")
+@login_required
+def system_positions(system_id):
+    data = request.get_json(silent=True) or {}
+    positions = data.get("positions", [])
+    if not isinstance(positions, list):
+        return {"ok": False, "message": "Positions invalides."}, 400
+    execute("UPDATE systems SET positions_json=? WHERE id=?", (json.dumps(positions), system_id))
+    return {"ok": True, "message": "Tableau tactique enregistré."}
+
+
 @app.route("/statistics")
 @login_required
 def statistics():
