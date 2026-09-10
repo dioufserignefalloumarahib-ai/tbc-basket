@@ -189,11 +189,64 @@ def players():
     return render_template("players.html", active="players", players=query(sql, params), teams=query("SELECT * FROM teams ORDER BY category, name"), search=search, position=position, team_id=team_id)
 
 
+@app.route("/players/new", methods=["GET", "POST"])
+@login_required
+def player_new():
+    teams_list = query("SELECT * FROM teams ORDER BY category, name")
+    if request.method == "POST":
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        if not first_name or not last_name:
+            flash("Le prénom et le nom sont obligatoires.", "danger")
+        else:
+            player_id = execute("INSERT INTO players (first_name,last_name,birth_date,jersey_number,position,team_id,phone,address,height,status,registration_date) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                (first_name, last_name, request.form.get("birth_date") or None, request.form.get("jersey_number") or None,
+                                 request.form.get("position") or None, request.form.get("team_id") or None, request.form.get("phone"),
+                                 request.form.get("address"), request.form.get("height") or None, request.form.get("status") or "Actif", date.today().isoformat()))
+            execute("INSERT INTO player_statistics (player_id) VALUES (?)", (player_id,))
+            flash("Joueur ajouté avec succès.", "success")
+            return redirect(url_for("players"))
+    return render_template("player_form.html", active="players", player=None, teams=teams_list, form_title="Ajouter un joueur")
+
+
+@app.post("/players/<int:player_id>/delete")
+@login_required
+def player_delete(player_id):
+    execute("DELETE FROM players WHERE id = ?", (player_id,))
+    flash("Joueur supprimé.", "success")
+    return redirect(url_for("players"))
+
+
 @app.route("/teams")
 @login_required
 def teams():
     rows = query("SELECT t.*, COUNT(p.id) AS player_count FROM teams t LEFT JOIN players p ON p.team_id=t.id GROUP BY t.id ORDER BY t.category, t.name")
     return render_template("teams.html", active="teams", teams=rows)
+
+
+@app.route("/teams/new", methods=["GET", "POST"])
+@login_required
+def team_new():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        category = request.form.get("category", "").strip()
+        if not name or not category:
+            flash("Le nom et la catégorie sont obligatoires.", "danger")
+        else:
+            team_id = execute("INSERT INTO teams (name,category,color,coach,description,created_at) VALUES (?,?,?,?,?,?)",
+                              (name, category, request.form.get("color") or "#e4572e", request.form.get("coach"), request.form.get("description"), datetime.now().isoformat()))
+            execute("INSERT INTO team_statistics (team_id) VALUES (?)", (team_id,))
+            flash("Équipe créée avec succès.", "success")
+            return redirect(url_for("teams"))
+    return render_template("team_form.html", active="teams", form_title="Créer une équipe")
+
+
+@app.post("/teams/<int:team_id>/delete")
+@login_required
+def team_delete(team_id):
+    execute("DELETE FROM teams WHERE id = ?", (team_id,))
+    flash("Équipe supprimée.", "success")
+    return redirect(url_for("teams"))
 
 
 @app.route("/matches")
@@ -208,10 +261,58 @@ def matches():
     return render_template("matches.html", active="matches", matches=query(sql, params), status=status)
 
 
+@app.route("/matches/new", methods=["GET", "POST"])
+@login_required
+def match_new():
+    teams_list = query("SELECT * FROM teams ORDER BY category, name")
+    if request.method == "POST":
+        opponent = request.form.get("opponent", "").strip()
+        match_date = request.form.get("match_date", "").strip()
+        if not opponent or not match_date:
+            flash("L'adversaire et la date sont obligatoires.", "danger")
+        else:
+            execute("INSERT INTO matches (team_id,opponent,match_date,match_time,venue,competition,status,home_score,away_score) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (request.form.get("team_id") or None, opponent, match_date, request.form.get("match_time"), request.form.get("venue"), request.form.get("competition"), request.form.get("status") or "À venir", int(request.form.get("home_score") or 0), int(request.form.get("away_score") or 0)))
+            flash("Match enregistré.", "success")
+            return redirect(url_for("matches"))
+    return render_template("match_form.html", active="matches", teams=teams_list, form_title="Programmer un match")
+
+
+@app.post("/matches/<int:match_id>/delete")
+@login_required
+def match_delete(match_id):
+    execute("DELETE FROM matches WHERE id = ?", (match_id,))
+    flash("Match supprimé.", "success")
+    return redirect(url_for("matches"))
+
+
 @app.route("/reservations")
 @login_required
 def reservations():
     return render_template("reservations.html", active="reservations", reservations=query("SELECT * FROM reservations ORDER BY reservation_date DESC, start_time DESC"))
+
+
+@app.route("/reservations/new", methods=["GET", "POST"])
+@login_required
+def reservation_new():
+    if request.method == "POST":
+        required = [request.form.get("requester", "").strip(), request.form.get("reservation_date", ""), request.form.get("start_time", ""), request.form.get("end_time", "")]
+        if not all(required):
+            flash("Demandeur, date et horaires sont obligatoires.", "danger")
+        else:
+            execute("INSERT INTO reservations (requester,phone,reservation_date,start_time,end_time,reason,status) VALUES (?,?,?,?,?,?,?)",
+                    (required[0], request.form.get("phone"), required[1], required[2], required[3], request.form.get("reason"), request.form.get("status") or "En attente"))
+            flash("Réservation créée.", "success")
+            return redirect(url_for("reservations"))
+    return render_template("reservation_form.html", active="reservations", form_title="Nouvelle réservation")
+
+
+@app.post("/reservations/<int:reservation_id>/delete")
+@login_required
+def reservation_delete(reservation_id):
+    execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
+    flash("Réservation supprimée.", "success")
+    return redirect(url_for("reservations"))
 
 
 @app.route("/venue")
