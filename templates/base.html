@@ -1,58 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>{% block title %}TBC - Thiadiaye Basket Club{% endblock %}</title>
-
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ club_short }} · {% block title %}Dashboard{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
 </head>
-
 <body>
-
-    <header class="header">
-
-        <div class="logo">
-            🏀 <span>TBC</span>
-        </div>
-
-        <div class="club-name">
-            THIADIAYE BASKET CLUB
-        </div>
-
-    </header>
-
-    <nav class="navbar">
-
-        <a href="/">🏠 Accueil</a>
-        <a href="/terrain">🏟️ Terrain</a>
-        <a href="/joueurs">👥 Joueurs</a>
-        <a href="/equipes">🏀 Équipes</a>
-        <a href="/matchs">📅 Matchs</a>
-        <a href="/tournois">🏆 Tournois</a>
-        <a href="/reservations">📌 Réservations</a>
-
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">TBC</div><div><strong>TBC</strong><span>Thiadiaye Basket Club</span></div></div>
+    <nav>
+      <a class="{% if active == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><span>⌂</span>Accueil</a>
+      <a class="{% if active == 'venue' %}active{% endif %}" href="{{ url_for('venue') }}"><span>▣</span>Terrain</a>
+      <a class="{% if active == 'players' %}active{% endif %}" href="{{ url_for('players') }}"><span>♙</span>Joueurs</a>
+      <a class="{% if active == 'teams' %}active{% endif %}" href="{{ url_for('teams') }}"><span>♟</span>Équipes</a>
+      <a class="{% if active == 'matches' %}active{% endif %}" href="{{ url_for('matches') }}"><span>◷</span>Matchs</a>
+      <a class="{% if active == 'statistics' %}active{% endif %}" href="{{ url_for('statistics') }}"><span>▥</span>Statistiques</a>
+      <a class="{% if active == 'nba' %}active{% endif %}" href="{{ url_for('nba') }}"><span>★</span>NBA Scores</a>
+      <a class="{% if active == 'scoreboard' %}active{% endif %}" href="{{ url_for('scoreboard') }}"><span>⏱</span>Tableau de score</a>
+      <a class="{% if active == 'reservations' %}active{% endif %}" href="{{ url_for('reservations') }}"><span>▤</span>Réservations</a>
+      <a class="{% if active == 'finance' %}active{% endif %}" href="#"><span>◆</span>Finances <small>Bientôt</small></a>
     </nav>
-
-    <main class="container">
-
-        {% block content %}
-        {% endblock %}
-
-    </main>
-
-    <footer>
-
-        <p>
-            🏀 TBC — THIADIAYE BASKET CLUB
-        </p>
-
-        <p>
-            THADIAYE, on vous porte dans nos veines
-        </p>
-
-    </footer>
-
-</body>
-</html>
+    <div class="sidebar-bottom"><a class="settings-link {% if active == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}"><span>⚙</span>Paramètres</a><a class="user-chip" href="{{ url_for('logout') }}"><span class="avatar">{{ session.get('username','A')[0]|upper }}</span><span><b>{{ session.get('username','Admin') }}</b><small>Administrateur · Déconnexion</small></span></a></div>
+  </aside>
+  <main class="main"><header class="topbar"><button class="menu-toggle" onclick="document.body.classList.toggle('nav-open')">☰</button><div><span class="eyebrow">THIADIAYE · SÉNÉGAL</span><h1>{% block heading %}Vue d'ensemble{% endblock %}</h1></div><div class="top-actions"><span class="status-dot">● Système opérationnel</span><span class="date-pill">{{ current_year }}</span></div></header>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack">{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
+  <div class="content">{% block content %}{% endblock %}</div><footer>© {{ current_year }} TBC · Plateforme de gestion du club</footer></main>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>{% block scripts %}{% endblock %}
+</body></html>

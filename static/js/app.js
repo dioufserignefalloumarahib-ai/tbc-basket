@@ -1,0 +1,1 @@
+document.querySelectorAll('.flash').forEach((item) => { window.setTimeout(() => item.classList.add('fade-out'), 4500); });

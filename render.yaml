@@ -1,13 +1,16 @@
 services:
   - type: web
-    name: thiadiaye-basket-club
+    name: tbc-basket
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn --workers 2 --threads 4 --timeout 120 app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
-    disk:
-      name: tbc-data
-      mountPath: /opt/render/project/src/database
-      sizeGB: 1
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: NBA_API_KEY
+        sync: false
+      - key: NBA_API_BASE_URL
+        sync: false
